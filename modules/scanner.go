@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"os"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -27,6 +29,7 @@ type scannerModule struct {
 	scanButton   *widget.Button
 	statusLabel  *widget.Label
 	detailsLabel *widget.Label
+	systemLabel  *widget.Label
 	resultsList  *widget.List
 	portStatuses []portStatus
 	portIndex    map[int]int
@@ -53,6 +56,8 @@ func (m *scannerModule) Content() fyne.CanvasObject {
 
 	entryContainer := container.New(layout.NewGridWrapLayout(fyne.NewSize(240, m.targetEntry.MinSize().Height)), m.targetEntry)
 	buttonContainer := container.New(layout.NewGridWrapLayout(buttonWidth), m.scanButton)
+	entrySpacer := container.New(layout.NewGridWrapLayout(fyne.NewSize(8, m.targetEntry.MinSize().Height)), widget.NewLabel(""))
+	formRow := container.NewHBox(entryContainer, entrySpacer, buttonContainer)
 
 	m.detailsLabel = widget.NewLabel("No target selected.")
 	m.detailsLabel.Wrapping = fyne.TextWrapWord
@@ -62,9 +67,28 @@ func (m *scannerModule) Content() fyne.CanvasObject {
 	const detailsWidth float32 = 260
 	detailsContainer := container.New(layout.NewGridWrapLayout(fyne.NewSize(detailsWidth, detailsCard.MinSize().Height)), detailsCard)
 
-	separator := container.New(layout.NewGridWrapLayout(fyne.NewSize(20, buttonMin.Height)), widget.NewLabel(""))
+	m.systemLabel = widget.NewLabel("Gathering system info...")
+	m.systemLabel.Wrapping = fyne.TextWrapWord
+	systemTitle := widget.NewLabelWithStyle("System Fingerprint", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+	systemScroll := container.NewVScroll(m.systemLabel)
+	const systemHeightScale float32 = 1.0
+	systemScroll.SetMinSize(fyne.NewSize(detailsWidth, detailsCard.MinSize().Height*systemHeightScale))
+	systemContent := container.NewVBox(systemTitle, widget.NewSeparator(), systemScroll)
+	systemCard := widget.NewCard("", "", container.NewMax(systemContent))
+	const systemWidth float32 = 260
+	systemContainer := container.New(layout.NewGridWrapLayout(fyne.NewSize(systemWidth, systemCard.MinSize().Height)), systemCard)
 
-	actionRow := container.NewHBox(entryContainer, buttonContainer, separator, detailsContainer)
+	const spacerWidth float32 = 8
+	boxSpacer := container.New(layout.NewGridWrapLayout(fyne.NewSize(spacerWidth, detailsCard.MinSize().Height)), widget.NewLabel(""))
+	boxesRow := container.NewHBox(detailsContainer, boxSpacer, systemContainer)
+
+	overviewLabel := widget.NewLabelWithStyle("Scanner Overview", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+	descriptionLabel := widget.NewLabel("Configure and monitor scanning tasks.")
+
+	leftColumn := container.NewVBox(overviewLabel, descriptionLabel, formRow)
+	const columnsGap float32 = 16
+	columnsSpacer := container.New(layout.NewGridWrapLayout(fyne.NewSize(columnsGap, detailsCard.MinSize().Height)), widget.NewLabel(""))
+	headerRow := container.NewHBox(leftColumn, columnsSpacer, boxesRow, layout.NewSpacer())
 
 	m.statusLabel = widget.NewLabel("Enter a hostname or IP address to begin scanning.")
 
@@ -84,9 +108,7 @@ func (m *scannerModule) Content() fyne.CanvasObject {
 	m.resetDisplayState()
 
 	m.content = container.NewVBox(
-		widget.NewLabelWithStyle("Scanner Overview", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-		widget.NewLabel("Configure and monitor scanning tasks."),
-		actionRow,
+		headerRow,
 		m.statusLabel,
 		resultsCard,
 	)
@@ -111,6 +133,7 @@ func (m *scannerModule) startScan() {
 	m.setScanActive(true)
 	m.setStatus(fmt.Sprintf("Scanning %s...", target))
 	m.updateTargetDetails(target)
+	m.populateSystemDetails()
 	m.initPortStatuses("pending")
 
 	go m.performScan(ctx, target)
@@ -221,6 +244,28 @@ func (m *scannerModule) updateTargetDetails(target string) {
 	m.detailsLabel.SetText(strings.Join(lines, "\n"))
 }
 
+func (m *scannerModule) populateSystemDetails() {
+	if m.systemLabel == nil {
+		return
+	}
+
+	hostname, err := os.Hostname()
+	if err != nil {
+		hostname = "unknown"
+	}
+
+	lines := []string{
+		fmt.Sprintf("Hostname: %s", hostname),
+		fmt.Sprintf("OS / Arch: %s / %s", runtime.GOOS, runtime.GOARCH),
+		fmt.Sprintf("Go Version: %s", runtime.Version()),
+		fmt.Sprintf("CPU Cores: %d", runtime.NumCPU()),
+		fmt.Sprintf("GOMAXPROCS: %d", runtime.GOMAXPROCS(0)),
+		fmt.Sprintf("Time: %s", time.Now().Format(time.RFC1123)),
+	}
+
+	m.systemLabel.SetText(strings.Join(lines, "\n"))
+}
+
 func (m *scannerModule) setPortStatus(port int, status string) {
 	if idx, ok := m.portIndex[port]; ok {
 		m.portStatuses[idx].Status = status
@@ -253,6 +298,9 @@ func (m *scannerModule) resetDisplayState() {
 	m.clearPortStatuses()
 	m.setStatus("Enter a hostname or IP address to begin scanning.")
 	m.updateTargetDetails("")
+	if m.systemLabel != nil {
+		m.systemLabel.SetText("System info not yet captured.")
+	}
 }
 
 func (m *scannerModule) setScanActive(active bool) {
