@@ -10,7 +10,7 @@ type Module interface {
 func Registered() []Module {
 	return []Module{
 		&scannerModule{},
-		&testBenchModule{},
-		&reportsModule{},
+		&networkMapperModule{},
+		&vulnerabilityModule{},
 	}
 }
