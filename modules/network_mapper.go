@@ -47,11 +47,10 @@ func (m *networkMapperModule) Content() fyne.CanvasObject {
 
 	m.runButton = widget.NewButton("Run Network Mapper", m.toggleRun)
 
-	entryRow := container.NewHBox(
-		container.New(layout.NewGridWrapLayout(fyne.NewSize(240, m.subnetEntry.MinSize().Height)), m.subnetEntry),
-		layout.NewSpacer(),
-		container.New(layout.NewGridWrapLayout(m.runButton.MinSize()), m.runButton),
-	)
+	entryField := container.New(layout.NewGridWrapLayout(fyne.NewSize(260, m.subnetEntry.MinSize().Height)), m.subnetEntry)
+	buttonWrap := container.New(layout.NewGridWrapLayout(fyne.NewSize(200, m.runButton.MinSize().Height)), m.runButton)
+	buttonSpacer := container.New(layout.NewGridWrapLayout(fyne.NewSize(12, m.runButton.MinSize().Height)), widget.NewLabel(""))
+	entryRow := container.NewHBox(entryField, buttonSpacer, buttonWrap, layout.NewSpacer())
 
 	m.statusLabel = widget.NewLabel("Idle. Provide a subnet and click Run.")
 
